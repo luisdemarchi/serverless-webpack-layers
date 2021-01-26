@@ -98,15 +98,12 @@ class LayerManagerPlugin {
       fs.writeFileSync(path.join(nodeLayerPath, 'package.json'), '{}');
     }
     verbose(this, `Installing nodejs layer ${localPath} with ${this.config.packager}`);
-    let command =
-      this.config.packager === 'npm' ? 'NODE_ENV=production npm install' : 'NODE_ENV=production yarn install';
+    let command = this.config.packager === 'npm' ? 'npm install' : 'yarn install';
     if (this.config.webpack) {
       const packages = await getExternalModules(sls, layerRefName);
       if (packages.length !== 0) {
         command =
-          this.config.packager === 'npm'
-            ? `NODE_ENV=production npm install ${packages.join(' ')}`
-            : `NODE_ENV=production yarn add ${packages.join(' ')}`;
+          this.config.packager === 'npm' ? `npm install ${packages.join(' ')}` : `yarn add ${packages.join(' ')}`;
       } else {
         command = 'ls';
       }
@@ -132,8 +129,15 @@ class LayerManagerPlugin {
       this.installLayer(sls, layer, layerName)
     );
 
-    await Promise.all(installedLayers.map(layer => this.delete(sls, layer.path)));
+    await Promise.all(
+      installedLayers.map(layer => {
+        if (typeof layer === 'object') {
+          this.delete(sls, layer.path);
+        }
+      })
+    );
     info(this, `Installed ${installedLayers.length} layers`);
+
     return { installedLayers };
   }
 
@@ -152,7 +156,7 @@ class LayerManagerPlugin {
       log(this, 'Unable to add layers currently as config unavailable');
       return;
     }
-    const { exportLayers, exportPrefix, upgradeLayerReferences } = this.config;
+    const { exportLayers, exportPrefix, upgradeLayerReferences } = this.config || DEFAULT_CONFIG;
     const layers = getLayers(sls);
     const { compiledCloudFormationTemplate: cf } = sls.service.provider;
 
@@ -175,7 +179,7 @@ class LayerManagerPlugin {
           result.exportedLayers.push(output);
         }
 
-        if (upgradeLayerReferences) {
+       if (upgradeLayerReferences) {
           const resourceRef = `${name}LambdaLayer`;
           const versionedResourceRef = output.Value.Ref;
 
